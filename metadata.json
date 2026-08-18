@@ -1,0 +1,8 @@
+{
+  "name": "Remix Camper Leveler",
+  "description": "Camper van leveling assistant for Android head units and mobile devices with gyroscope orientation, Citroën Jumper visual tilt graphics, and wheel ramp height calculations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Camper Vehicle Leveler</string>
+    <string name="title_activity_main">Camper Vehicle Leveler</string>
+    <string name="package_name">com.camper.vehicleleveler</string>
+    <string name="custom_url_scheme">com.camper.vehicleleveler</string>
+</resources>

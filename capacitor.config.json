@@ -1,0 +1,6 @@
+{
+  "appId": "com.camper.vehicleleveler",
+  "appName": "Camper Vehicle Leveler",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
