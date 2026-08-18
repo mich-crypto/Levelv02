@@ -30,6 +30,12 @@ jobs:
           npm install
           npm run android:build
 
+      - name: Fix Gradle Wrapper Jar
+        working-directory: ./android
+        run: |
+          mkdir -p gradle/wrapper
+          curl -f -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/HEAD/gradle/wrapper/gradle-wrapper.jar || curl -f -L -o gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/HEAD/gradle/wrapper/gradle-wrapper.jar
+
       - name: Grant execute permission for gradlew
         run: cd android && chmod +x gradlew
 
