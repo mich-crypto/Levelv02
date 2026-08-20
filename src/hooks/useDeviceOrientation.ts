@@ -4,8 +4,47 @@ import { OrientationData, CalibrationOffset } from '../types';
 const STORAGE_KEY_CALIBRATION = 'camper_leveler_calibration_v1';
 const STORAGE_KEY_SMOOTHING = 'camper_leveler_smoothing_v1';
 
+// iOS 13+ Safari requires an explicit, user-gesture-triggered permission grant
+// before DeviceOrientation/DeviceMotion events will ever fire. Android and
+// desktop browsers have no such API and should behave as before.
+function iosMotionPermissionRequired(): boolean {
+  if (typeof window === 'undefined') return false;
+  const DOE = (window as unknown as { DeviceOrientationEvent?: { requestPermission?: () => Promise<string> } })
+    .DeviceOrientationEvent;
+  return !!DOE && typeof DOE.requestPermission === 'function';
+}
+
 export function useDeviceOrientation() {
   const [hasSensor, setHasSensor] = useState<boolean>(false);
+
+  // Whether this browser (iOS Safari) gates motion/orientation behind a
+  // user-gesture permission prompt, and whether that permission was granted.
+  const [needsMotionPermission] = useState<boolean>(iosMotionPermissionRequired);
+  const [motionPermissionGranted, setMotionPermissionGranted] = useState<boolean>(
+    () => !iosMotionPermissionRequired()
+  );
+
+  const requestMotionPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      type PermissionEvent = { requestPermission?: () => Promise<string> };
+      const DOE = (window as unknown as { DeviceOrientationEvent?: PermissionEvent }).DeviceOrientationEvent;
+      const DME = (window as unknown as { DeviceMotionEvent?: PermissionEvent }).DeviceMotionEvent;
+
+      let granted = true;
+      if (DOE && typeof DOE.requestPermission === 'function') {
+        granted = (await DOE.requestPermission()) === 'granted' && granted;
+      }
+      if (DME && typeof DME.requestPermission === 'function') {
+        granted = (await DME.requestPermission()) === 'granted' && granted;
+      }
+      setMotionPermissionGranted(granted);
+      return granted;
+    } catch (err) {
+      console.warn('Motion permission request failed:', err);
+      setMotionPermissionGranted(false);
+      return false;
+    }
+  }, []);
 
   // Manual simulation state (for testing or when sensor is idle)
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
@@ -123,6 +162,12 @@ export function useDeviceOrientation() {
 
   // Main listener for Android Head Unit / Android Browser Gyroscope & Accelerometer
   useEffect(() => {
+    // On iOS Safari, wait for the user to grant motion permission via a tap
+    // before touching the sensor APIs at all.
+    if (needsMotionPermission && !motionPermissionGranted) {
+      return;
+    }
+
     if (isSimulating) {
       const rawPitch = simulatedPitch;
       const rawRoll = simulatedRoll;
@@ -248,6 +293,8 @@ export function useDeviceOrientation() {
     simulatedRoll,
     smoothingFactor,
     hasSensor,
+    needsMotionPermission,
+    motionPermissionGranted,
   ]);
 
   return {
@@ -264,5 +311,8 @@ export function useDeviceOrientation() {
     setSimulatedPitch,
     simulatedRoll,
     setSimulatedRoll,
+    needsMotionPermission,
+    motionPermissionGranted,
+    requestMotionPermission,
   };
 }

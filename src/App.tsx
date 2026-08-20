@@ -28,6 +28,9 @@ export default function App() {
     setSimulatedPitch,
     simulatedRoll,
     setSimulatedRoll,
+    needsMotionPermission,
+    motionPermissionGranted,
+    requestMotionPermission,
   } = useDeviceOrientation();
 
   // Vehicle Dimensions Config (Wheelbase, Track Width, & Tolerance)
@@ -81,6 +84,13 @@ export default function App() {
     } catch {
       // ignore
     }
+  };
+
+  // iOS Safari (incl. iPad) gates motion sensors behind a tap-triggered
+  // permission prompt. Ask for it and unlock audio in the same gesture.
+  const handleEnableMotion = async () => {
+    audioAssistant.initCtx();
+    await requestMotionPermission();
   };
 
   // Audio Assistant Toggle with automatic unlock
@@ -241,6 +251,26 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {/* iOS Safari (iPad/iPhone) requires a tap to unlock motion sensors */}
+      {needsMotionPermission && !motionPermissionGranted && (
+        <div
+          className={`w-full flex items-center justify-between gap-3 mt-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
+            isDayMode
+              ? 'bg-amber-50 border-amber-300 text-amber-900'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+          }`}
+        >
+          <span>This browser requires permission to read the gyroscope/tilt sensors.</span>
+          <button
+            id="enable-motion-btn"
+            onClick={handleEnableMotion}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold active:scale-95 transition-all"
+          >
+            Enable Sensors
+          </button>
+        </div>
+      )}
 
       {/* 2. MAIN VEHICLE GAUGE CARDS (FRONT & SIDE) */}
       <main className="w-full flex-1 flex flex-col justify-center min-h-0 py-1">
