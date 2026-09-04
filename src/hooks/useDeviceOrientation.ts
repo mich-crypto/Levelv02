@@ -14,6 +14,29 @@ function iosMotionPermissionRequired(): boolean {
   return !!DOE && typeof DOE.requestPermission === 'function';
 }
 
+// Shortest signed distance from `to` back to `from`, in (-180, 180]. Using a
+// plain subtraction to measure how far a new sample moved breaks down near
+// the +-180 wrap boundary (e.g. 179 -> -179 looks like a 358 degree jump when
+// it's actually a 2 degree one) - this keeps jump detection honest there.
+function angularDelta(to: number, from: number): number {
+  let d = (to - from) % 360;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+}
+
+// DeviceOrientation's beta/gamma are Euler angles, which have a real
+// coordinate singularity: near certain mounting angles (a head unit propped
+// up close to vertical is exactly this range) a tiny physical rotation can
+// make the reported angle jump by tens or even ~100+ degrees for a sample or
+// two before snapping back. A parked van simply can't move that fast, so
+// treat any single-sample jump bigger than this as a sensor glitch rather
+// than real motion, and only accept it once a couple of samples agree it's
+// real (e.g. the unit was actually picked up and rotated, or the app resumed
+// after being backgrounded for a while).
+const MAX_PLAUSIBLE_JUMP_DEG = 20;
+const JUMP_CONFIRMATIONS_REQUIRED = 3;
+
 export function useDeviceOrientation() {
   const [hasSensor, setHasSensor] = useState<boolean>(false);
 
@@ -87,6 +110,11 @@ export function useDeviceOrientation() {
   const lastRawPitchRef = useRef<number>(1.8);
   const lastRawRollRef = useRef<number>(-2.4);
   const sensorEventsCountRef = useRef<number>(0);
+
+  // Tracks a not-yet-confirmed large jump in the raw sensor reading, so it
+  // can be told apart from a genuine sensor glitch (see MAX_PLAUSIBLE_JUMP_DEG).
+  const pendingJumpRef = useRef<{ pitch: number; roll: number } | null>(null);
+  const pendingJumpCountRef = useRef<number>(0);
 
   // Keep latest calibration in a ref so useEffect callback always reads current values instantly
   const calibrationRef = useRef<CalibrationOffset>(calibration);
@@ -194,6 +222,36 @@ export function useDeviceOrientation() {
       sensorEventsCountRef.current += 1;
       if (!hasSensor) {
         setHasSensor(true);
+      }
+
+      // Reject implausible single-sample jumps (Euler-angle singularity near
+      // certain mounting angles, or a one-off sensor glitch) unless several
+      // consecutive samples agree the device really did move that far.
+      const jumpP = Math.abs(angularDelta(pitchDeg, lastRawPitchRef.current));
+      const jumpR = Math.abs(angularDelta(rollDeg, lastRawRollRef.current));
+
+      if (jumpP > MAX_PLAUSIBLE_JUMP_DEG || jumpR > MAX_PLAUSIBLE_JUMP_DEG) {
+        const pending = pendingJumpRef.current;
+        const matchesPending =
+          !!pending &&
+          Math.abs(angularDelta(pitchDeg, pending.pitch)) < 5 &&
+          Math.abs(angularDelta(rollDeg, pending.roll)) < 5;
+
+        if (matchesPending) {
+          pendingJumpCountRef.current += 1;
+        } else {
+          pendingJumpRef.current = { pitch: pitchDeg, roll: rollDeg };
+          pendingJumpCountRef.current = 1;
+        }
+
+        if (pendingJumpCountRef.current < JUMP_CONFIRMATIONS_REQUIRED) {
+          // Not confirmed yet - drop this sample, keep showing the last good value.
+          return;
+        }
+        // Confirmed by several consecutive samples - accept it as real motion below.
+      } else {
+        pendingJumpRef.current = null;
+        pendingJumpCountRef.current = 0;
       }
 
       lastRawPitchRef.current = pitchDeg;
