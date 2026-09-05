@@ -37,6 +37,51 @@ function angularDelta(to: number, from: number): number {
 const MAX_PLAUSIBLE_JUMP_DEG = 20;
 const JUMP_CONFIRMATIONS_REQUIRED = 3;
 
+/** How far the page content is rotated from the device's natural orientation. */
+function getScreenAngle(): number {
+  if (typeof window === 'undefined') return 0;
+  return (
+    window.screen?.orientation?.angle ??
+    (typeof window.orientation === 'number' ? window.orientation : 0)
+  );
+}
+
+/**
+ * Compass bearing that the TOP OF THE SCREEN points to, in degrees clockwise
+ * from north — or undefined when this device gives us nothing north-referenced.
+ *
+ * Two corrections the old code was missing, which together read as a compass
+ * that is right when you face north or south and 180 degrees out east or west:
+ *
+ *  - `alpha` is measured ANTI-clockwise from north, while a compass bearing runs
+ *    clockwise, so it has to be inverted (360 - alpha) rather than used raw.
+ *  - `alpha` describes the device's NATIVE top. On a head unit mounted in
+ *    landscape the top of the screen is a different edge, so the screen's
+ *    rotation has to be added back on.
+ *
+ * Heading is only meaningful when the reading is referenced to magnetic north.
+ * A plain `deviceorientation` event on Android is usually RELATIVE to wherever
+ * the device happened to be pointing when the listener attached, which is worse
+ * than useless for a compass — so we return undefined and let the UI say so
+ * rather than print a confident, arbitrary number.
+ */
+function compassHeadingFrom(event: DeviceOrientationEvent): number | undefined {
+  const screenAngle = getScreenAngle();
+
+  // iOS reports a true heading directly, already clockwise from north.
+  const webkitHeading = (event as unknown as { webkitCompassHeading?: number })
+    .webkitCompassHeading;
+  if (typeof webkitHeading === 'number' && !Number.isNaN(webkitHeading)) {
+    return (webkitHeading + screenAngle + 360) % 360;
+  }
+
+  if (event.absolute && event.alpha !== null && event.alpha !== undefined) {
+    return (360 - event.alpha + screenAngle + 360) % 360;
+  }
+
+  return undefined;
+}
+
 export function useDeviceOrientation() {
   const [hasSensor, setHasSensor] = useState<boolean>(false);
 
@@ -115,6 +160,10 @@ export function useDeviceOrientation() {
   // can be told apart from a genuine sensor glitch (see MAX_PLAUSIBLE_JUMP_DEG).
   const pendingJumpRef = useRef<{ pitch: number; roll: number } | null>(null);
   const pendingJumpCountRef = useRef<number>(0);
+
+  // Latest north-referenced heading, or undefined when this device has no
+  // absolute source (see compassHeadingFrom).
+  const headingRef = useRef<number | undefined>(undefined);
 
   // Keep latest calibration in a ref so useEffect callback always reads current values instantly
   const calibrationRef = useRef<CalibrationOffset>(calibration);
@@ -279,16 +328,18 @@ export function useDeviceOrientation() {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       const beta = event.beta;
       const gamma = event.gamma;
-      const alpha = event.alpha ?? 0;
+
+      const heading = compassHeadingFrom(event);
+      if (heading !== undefined) {
+        headingRef.current = heading;
+      }
 
       if (beta === null && gamma === null) return;
 
       const b = beta ?? 0;
       const g = gamma ?? 0;
 
-      const screenAngle =
-        window.screen?.orientation?.angle ??
-        (typeof window.orientation === 'number' ? window.orientation : 0);
+      const screenAngle = getScreenAngle();
 
       let extractedPitch = 0;
       let extractedRoll = 0;
@@ -309,7 +360,14 @@ export function useDeviceOrientation() {
         }
       }
 
-      processAngles(extractedPitch, extractedRoll, alpha);
+      processAngles(extractedPitch, extractedRoll, headingRef.current);
+    };
+
+    // Android fires the north-referenced reading on its own event; the plain
+    // `deviceorientation` one is usually relative and no use as a compass.
+    const handleAbsoluteOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha === null || event.alpha === undefined) return;
+      headingRef.current = (360 - event.alpha + getScreenAngle() + 360) % 360;
     };
 
     const handleMotion = (event: DeviceMotionEvent) => {
@@ -332,6 +390,7 @@ export function useDeviceOrientation() {
     };
 
     window.addEventListener('deviceorientation', handleOrientation, true);
+    window.addEventListener('deviceorientationabsolute', handleAbsoluteOrientation, true);
     window.addEventListener('devicemotion', handleMotion, true);
 
     const timer = setTimeout(() => {
@@ -342,6 +401,7 @@ export function useDeviceOrientation() {
 
     return () => {
       window.removeEventListener('deviceorientation', handleOrientation, true);
+      window.removeEventListener('deviceorientationabsolute', handleAbsoluteOrientation, true);
       window.removeEventListener('devicemotion', handleMotion, true);
       clearTimeout(timer);
     };

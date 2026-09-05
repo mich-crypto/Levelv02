@@ -6,7 +6,7 @@ interface CompassSunriseBadgeProps {
   yaw?: number; // device heading in degrees (0-360)
 }
 
-export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw = 0 }) => {
+export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw }) => {
   const [sunriseAzimuth, setSunriseAzimuth] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
@@ -39,7 +39,9 @@ export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw = 
     );
   }, []);
 
-  const heading = Math.round(yaw ?? 0);
+  // No absolute (north-referenced) source on this device -> no heading.
+  const hasHeading = typeof yaw === 'number' && !Number.isNaN(yaw);
+  const heading = hasHeading ? Math.round(yaw as number) : 0;
 
   const dial = (size: number, showCardinals: boolean) => (
     <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden="true">
@@ -100,7 +102,9 @@ export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw = 
         style={{ border: '1px solid var(--line)', color: 'var(--ink-2)' }}
       >
         {dial(24, false)}
-        <span className="readout text-sm font-medium hidden sm:inline">{heading}°</span>
+        <span className="readout text-sm font-medium hidden sm:inline">
+          {hasHeading ? `${heading}°` : '—'}
+        </span>
       </button>
 
       <AnimatePresence>
@@ -138,8 +142,11 @@ export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw = 
                   <span className="stencil text-[9px]" style={{ color: 'var(--ink-3)' }}>
                     Nose
                   </span>
-                  <span className="readout text-2xl font-semibold" style={{ color: 'var(--ink)' }}>
-                    {heading}°
+                  <span
+                    className="readout text-2xl font-semibold"
+                    style={{ color: hasHeading ? 'var(--ink)' : 'var(--ink-3)' }}
+                  >
+                    {hasHeading ? `${heading}°` : '—'}
                   </span>
                 </div>
                 <div className="flex flex-col items-center gap-1 py-2" style={{ border: '1px solid var(--line)' }}>
@@ -155,7 +162,14 @@ export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw = 
                 </div>
               </div>
 
-              {sunriseAzimuth === null && (
+              {!hasHeading && (
+                <p className="text-[11px] text-center" style={{ color: 'var(--ink-3)' }}>
+                  This device reports no compass bearing, only tilt. Heading needs a
+                  magnetometer reading referenced to north, which it is not providing.
+                </p>
+              )}
+
+              {hasHeading && sunriseAzimuth === null && (
                 <p className="text-[11px] text-center" style={{ color: 'var(--ink-3)' }}>
                   Sunrise bearing needs a location fix, which this device has not provided.
                 </p>
