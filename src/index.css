@@ -1,6 +1,104 @@
 @import "tailwindcss";
 
-html, body, #root {
+/* ==========================================================================
+   Typefaces — bundled locally so the app is fully legible with no internet
+   at a campsite. Saira Condensed carries the instrument numerals (condensed,
+   mechanical, readable at a glance from outside the van); Barlow handles
+   labels and running text.
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Saira Condensed';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('./assets/fonts/sairacondensed-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Saira Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/sairacondensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Saira Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('./assets/fonts/sairacondensed-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('./assets/fonts/barlow-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('./assets/fonts/barlow-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./assets/fonts/barlow-600.woff2') format('woff2');
+}
+
+/* ==========================================================================
+   Palette — an instrument panel, not a web dashboard.
+   Night is the default: warm near-black with amber instrument lighting, the
+   way a Jumper/Ducato dash is actually lit. Day swaps to warm paper for
+   daylight glare. Both are driven off [data-mode] on the root element,
+   because the app has its own explicit day/night control.
+   ========================================================================== */
+
+:root {
+  --ground: #14110e;
+  --panel: #1c1815;
+  --well: #100d0b;
+  --line: #332c24;
+  --line-strong: #4a4036;
+
+  --amber: #f2a03d;
+  --amber-dim: #6b4a1e;
+
+  --ink: #f0e7da;
+  --ink-2: #9c9185;
+  --ink-3: #6b6157;
+
+  --level: #86b36b;
+
+  --font-display: 'Saira Condensed', 'Oswald', 'Roboto Condensed', system-ui, sans-serif;
+  --font-ui: 'Barlow', 'Roboto', system-ui, -apple-system, sans-serif;
+}
+
+[data-mode='day'] {
+  --ground: #e5ded2;
+  --panel: #f2ede4;
+  --well: #d8cfc0;
+  --line: #c2b6a4;
+  --line-strong: #a2947e;
+
+  --amber: #a85f0e;
+  --amber-dim: #d8be96;
+
+  --ink: #1a1613;
+  --ink-2: #5e5449;
+  --ink-3: #857a6d;
+
+  --level: #40702f;
+
+}
+
+html,
+body,
+#root {
   height: 100%;
   height: 100dvh;
   margin: 0;
@@ -13,11 +111,112 @@ html, body, #root {
   overscroll-behavior: none;
 }
 
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+/* Instrument numerals: condensed, tabular, and never re-flowing as digits change. */
+.readout {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+  line-height: 0.9;
+}
+
+/* Engraved-panel labels. */
+.stencil {
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 600;
+}
+
+/* Hairline rules that read as machined seams rather than CSS borders. */
+.seam {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--line-strong) 12%,
+    var(--line-strong) 88%,
+    transparent
+  );
+}
+
 @supports (padding: env(safe-area-inset-top)) {
   #camper-level-single-page {
-    padding-top: max(0.75rem, env(safe-area-inset-top));
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
     padding-left: max(0.75rem, env(safe-area-inset-left));
     padding-right: max(0.75rem, env(safe-area-inset-right));
+  }
+}
+
+button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================================
+   Layout switch is driven by the panel's shape, not its raw width. A head
+   unit is landscape and gets the three-across instrument cluster; anything
+   taller than it is wide (a tablet or phone held upright) stacks instead.
+   ========================================================================== */
+
+.cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.cluster > .cluster__axis {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.cluster__dial {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cluster__dial > div {
+  aspect-ratio: 1;
+  width: min(74vw, 36vh);
+}
+
+@media (orientation: landscape) and (min-aspect-ratio: 6/5) {
+  .cluster {
+    flex-direction: row;
+    align-items: center;
+    gap: clamp(1rem, 3vw, 3rem);
+  }
+
+  .cluster > .cluster__axis {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 22rem;
+  }
+
+  .cluster__dial > div {
+    width: min(40vw, 82vh);
   }
 }

@@ -5,15 +5,33 @@ import { SimpleVehicleView } from './components/SimpleVehicleView';
 import { OptionsModal } from './components/OptionsModal';
 import { CompassSunriseBadge } from './components/CompassSunriseBadge';
 import { VehicleConfig } from './types';
-import { 
-  Volume2, 
-  VolumeX, 
-  Sun, 
-  Moon, 
-  Target, 
-  RotateCcw, 
-  Ruler
-} from 'lucide-react';
+import { Volume2, VolumeX, Sun, Moon, SlidersHorizontal, Crosshair, RotateCcw } from 'lucide-react';
+
+interface RailButtonProps {
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+  children: React.ReactNode;
+  label?: string;
+}
+
+const RailButton: React.FC<RailButtonProps> = ({ onClick, active, title, children, label }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    aria-label={title}
+    className="h-10 px-2.5 sm:px-3 flex items-center gap-2 transition-colors active:scale-[0.97]"
+    style={{
+      color: active ? 'var(--amber)' : 'var(--ink-2)',
+      border: '1px solid',
+      borderColor: active ? 'var(--amber-dim)' : 'var(--line)',
+      background: active ? 'color-mix(in srgb, var(--amber) 10%, transparent)' : 'transparent',
+    }}
+  >
+    {children}
+    {label && <span className="stencil text-[10px] hidden lg:inline">{label}</span>}
+  </button>
+);
 
 export default function App() {
   const {
@@ -22,18 +40,11 @@ export default function App() {
     calibration,
     setZeroCalibration,
     resetCalibration,
-    isSimulating,
-    setIsSimulating,
-    simulatedPitch,
-    setSimulatedPitch,
-    simulatedRoll,
-    setSimulatedRoll,
     needsMotionPermission,
     motionPermissionGranted,
     requestMotionPermission,
   } = useDeviceOrientation();
 
-  // Vehicle Dimensions Config (Wheelbase, Track Width, & Tolerance)
   const [vehicleConfig, setVehicleConfig] = useState<VehicleConfig>(() => {
     try {
       const saved = localStorage.getItem('camper_vehicle_config_v1');
@@ -44,7 +55,6 @@ export default function App() {
     return { wheelbaseCm: 403.5, trackWidthCm: 181.0, toleranceDeg: 0.4 };
   });
 
-  // Options Modal State
   const [isOptionsOpen, setIsOptionsOpen] = useState<boolean>(false);
 
   const handleSaveConfig = (newConfig: VehicleConfig) => {
@@ -56,26 +66,22 @@ export default function App() {
     }
   };
 
-  // Night / Day Mode
   const [isDayMode, setIsDayMode] = useState<boolean>(() => {
     try {
-      const saved = localStorage.getItem('camper_day_mode');
-      return saved === 'true';
+      return localStorage.getItem('camper_day_mode') === 'true';
     } catch {
       return false;
     }
   });
 
-  // Sound alert when nearing zero
   const [isAudioEnabled, setIsAudioEnabled] = useState<boolean>(true);
 
   const pitch = orientation.pitch;
   const roll = orientation.roll;
   const tolerance = vehicleConfig.toleranceDeg ?? 0.4;
-  const totalTilt = Math.sqrt(pitch * pitch + roll * roll);
+  const totalTilt = Math.hypot(pitch, roll);
   const isLevel = Math.abs(pitch) <= tolerance && Math.abs(roll) <= tolerance;
 
-  // Toggle Day / Night Mode
   const toggleDayMode = () => {
     const next = !isDayMode;
     setIsDayMode(next);
@@ -86,21 +92,19 @@ export default function App() {
     }
   };
 
-  // iOS Safari (incl. iPad) gates motion sensors behind a tap-triggered
-  // permission prompt. Ask for it and unlock audio in the same gesture.
-  const handleEnableMotion = async () => {
-    audioAssistant.initCtx();
-    await requestMotionPermission();
-  };
-
-  // Audio Assistant Toggle with automatic unlock
   const handleToggleAudio = () => {
     const next = !isAudioEnabled;
     setIsAudioEnabled(next);
     audioAssistant.setEnabled(next);
   };
 
-  // Keep Audio Assistant updated with current pitch/roll
+  // iOS Safari gates motion sensors behind a tap. Ask for it and unlock audio
+  // in the same gesture.
+  const handleEnableMotion = async () => {
+    audioAssistant.initCtx();
+    await requestMotionPermission();
+  };
+
   useEffect(() => {
     audioAssistant.updateTilt(pitch, roll, tolerance);
   }, [pitch, roll, tolerance]);
@@ -108,202 +112,144 @@ export default function App() {
   return (
     <div
       id="camper-level-single-page"
-      className={`h-[100dvh] max-h-[100dvh] w-screen flex flex-col justify-between p-2.5 sm:p-4 md:p-5 font-sans select-none overflow-hidden touch-manipulation transition-colors duration-200 ${
-        isDayMode
-          ? 'bg-slate-100 text-slate-900'
-          : 'bg-neutral-950 text-neutral-100'
-      }`}
+      data-mode={isDayMode ? 'day' : 'night'}
+      className="h-[100dvh] max-h-[100dvh] w-screen flex flex-col select-none overflow-hidden touch-manipulation px-3 sm:px-5"
+      style={{ background: 'var(--ground)', color: 'var(--ink)' }}
     >
-      {/* 1. TOP HEADER / ACTION BAR */}
-      <header className="w-full flex items-center justify-between gap-2 pb-2 border-b border-neutral-700/20">
-        {/* Title & Status */}
-        <div className="flex items-center gap-2">
-          {/* Citroën Double Chevron Emblem */}
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-neutral-800 to-neutral-900 border border-neutral-700 flex items-center justify-center shadow shrink-0">
-            <svg viewBox="0 0 24 24" className="w-4 h-4 text-neutral-200" fill="currentColor">
-              <path d="M 4 8 L 12 2 L 20 8 L 16 11 L 12 8 L 8 11 Z" />
-              <path d="M 4 16 L 12 10 L 20 16 L 16 19 L 12 16 L 8 19 Z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xs sm:text-sm font-extrabold tracking-tight leading-tight uppercase">
+      {/* ---- TOP RAIL ---- */}
+      <header className="shrink-0 flex items-center justify-between gap-3 py-2.5">
+        <div className="flex items-center gap-3 min-w-0">
+          <svg viewBox="0 0 24 24" className="w-6 h-6 shrink-0" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="var(--line-strong)" strokeWidth="1.5" />
+            <line x1="12" y1="4.5" x2="12" y2="19.5" stroke="var(--line)" strokeWidth="1" />
+            <line x1="4.5" y1="12" x2="19.5" y2="12" stroke="var(--line)" strokeWidth="1" />
+            <circle cx="12" cy="12" r="4" fill="none" stroke="var(--amber)" strokeWidth="1.25" />
+            <circle cx="12" cy="12" r="2" fill="var(--amber)" />
+          </svg>
+
+          <div className="flex flex-col gap-1 min-w-0">
+            <h1 className="stencil text-[12px] sm:text-[13px] leading-none" style={{ color: 'var(--ink)' }}>
               Vehicle Level
             </h1>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] opacity-85">
-              <span className="relative flex h-2 w-2 items-center justify-center">
-                <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-40 ${
-                    hasSensor ? 'bg-emerald-400' : 'bg-amber-400'
-                  }`}
-                />
-                <span
-                  className={`relative inline-flex rounded-full h-2 w-2 ${
-                    hasSensor
-                      ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse'
-                      : 'bg-amber-400'
-                  }`}
-                />
+            <div className="flex items-center gap-2.5 text-[10px] leading-none whitespace-nowrap">
+              <span style={{ color: hasSensor ? 'var(--ink-2)' : 'var(--amber)' }}>
+                {hasSensor ? 'Sensor live' : 'No sensor signal'}
               </span>
-              <span
-                className={`font-semibold ${
-                  hasSensor ? 'text-emerald-400' : isSimulating ? 'text-amber-400' : 'text-neutral-400'
-                }`}
-              >
-                {hasSensor
-                  ? 'Android Gyro Active'
-                  : isSimulating
-                  ? 'Manual Mode'
-                  : 'Sensor Active'}
+              <span style={{ color: 'var(--line-strong)' }}>/</span>
+              <span style={{ color: calibration.isCalibrated ? 'var(--ink-2)' : 'var(--amber)' }}>
+                {calibration.isCalibrated
+                  ? `Zeroed ${calibration.calibratedAt ?? ''}`.trim()
+                  : 'Not zeroed'}
               </span>
-              {calibration.isCalibrated && (
-                <span className="text-emerald-500 font-bold">• Calibrated</span>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Action Controls: Sound, Night/Day, Options, Simple Calibrate */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Sound Alert Toggle */}
-          <button
-            id="toggle-audio-btn"
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <RailButton
             onClick={handleToggleAudio}
-            className={`p-2 sm:p-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 ${
-              isAudioEnabled
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
-                : isDayMode
-                ? 'bg-white border-slate-300 text-slate-400 hover:text-slate-700'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-            }`}
-            title="Sound alert when nearing zero"
+            active={isAudioEnabled}
+            title="Audio level guidance"
+            label="Sound"
           >
             {isAudioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="hidden md:inline text-[11px]">Sound</span>
-          </button>
+          </RailButton>
 
-          {/* Night / Day Mode Toggle */}
-          <button
-            id="toggle-theme-btn"
-            onClick={toggleDayMode}
-            className={`p-2 sm:p-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 ${
-              isDayMode
-                ? 'bg-white border-slate-300 text-slate-700 shadow-sm'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
-            }`}
-            title="Switch Night and Day Mode"
-          >
+          <RailButton onClick={toggleDayMode} title="Day or night panel lighting" label={isDayMode ? 'Day' : 'Night'}>
             {isDayMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="hidden md:inline text-[11px]">{isDayMode ? 'Day' : 'Night'}</span>
-          </button>
+          </RailButton>
 
-          {/* Options / Wheelbase Button */}
-          <button
-            id="open-options-btn"
+          <RailButton
             onClick={() => {
               audioAssistant.initCtx();
               setIsOptionsOpen(true);
             }}
-            className={`p-2 sm:p-2.5 rounded-xl border text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 ${
-              isDayMode
-                ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 shadow-sm'
-                : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white'
-            }`}
-            title="Configure Wheelbase & Track Width"
+            title="Vehicle dimensions and tolerance"
+            label="Setup"
           >
-            <Ruler className="w-4 h-4 text-emerald-400" />
-            <span className="hidden md:inline text-[11px]">Options</span>
-          </button>
+            <SlidersHorizontal className="w-4 h-4" />
+          </RailButton>
 
-          {/* Simple Calibrate Button (Tare Zero) */}
+          {calibration.isCalibrated && (
+            <RailButton onClick={resetCalibration} title="Clear the stored zero point">
+              <RotateCcw className="w-4 h-4" />
+            </RailButton>
+          )}
+
           <button
-            id="calibrate-zero-btn"
             onClick={() => {
               audioAssistant.initCtx();
               setZeroCalibration();
             }}
-            className={`px-3 py-2 sm:px-3.5 sm:py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all ${
-              calibration.isCalibrated
-                ? 'bg-emerald-600 text-white border border-emerald-500'
-                : isDayMode
-                ? 'bg-slate-900 text-white border border-slate-700'
-                : 'bg-neutral-100 text-neutral-900 border border-neutral-300'
-            }`}
-            title="Set Current Orientation as Level (0.0°)"
+            title="Set the current orientation as level"
+            className="h-10 px-4 flex items-center gap-2 transition-colors active:scale-[0.97]"
+            style={{
+              background: 'var(--amber)',
+              color: 'var(--ground)',
+              border: '1px solid var(--amber)',
+            }}
           >
-            <Target className="w-4 h-4" />
-            <span>Calibrate</span>
+            <Crosshair className="w-4 h-4" />
+            <span className="stencil text-[11px]">Calibrate</span>
           </button>
-
-          {/* Reset Calibration if active */}
-          {calibration.isCalibrated && (
-            <button
-              id="reset-calib-btn"
-              onClick={resetCalibration}
-              className={`p-2 sm:p-2.5 rounded-xl border text-xs transition-all active:scale-95 ${
-                isDayMode
-                  ? 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'
-                  : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-neutral-200'
-              }`}
-              title="Reset Calibration to Factory 0°"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
         </div>
       </header>
 
-      {/* iOS Safari (iPad/iPhone) requires a tap to unlock motion sensors */}
+      <div className="seam h-px shrink-0" />
+
+      {/* iOS Safari needs a tap before it will release the sensors */}
       {needsMotionPermission && !motionPermissionGranted && (
         <div
-          className={`w-full flex items-center justify-between gap-3 mt-2 px-3.5 py-2.5 rounded-xl border text-xs font-semibold ${
-            isDayMode
-              ? 'bg-amber-50 border-amber-300 text-amber-900'
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-          }`}
+          className="shrink-0 mt-2.5 px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs"
+          style={{
+            border: '1px solid var(--amber-dim)',
+            background: 'color-mix(in srgb, var(--amber) 8%, transparent)',
+            color: 'var(--ink)',
+          }}
         >
-          <span>This browser requires permission to read the gyroscope/tilt sensors.</span>
+          <span>This browser needs permission before it will report tilt.</span>
           <button
-            id="enable-motion-btn"
             onClick={handleEnableMotion}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold active:scale-95 transition-all"
+            className="stencil shrink-0 px-3 h-8 text-[10px]"
+            style={{ background: 'var(--amber)', color: 'var(--ground)' }}
           >
-            Enable Sensors
+            Enable sensors
           </button>
         </div>
       )}
 
-      {/* 2. MAIN VEHICLE GAUGE CARDS (FRONT & SIDE) */}
-      <main className="w-full flex-1 flex flex-col justify-center min-h-0 py-1">
-        <SimpleVehicleView
-          pitch={pitch}
-          roll={roll}
-          isDayMode={isDayMode}
-          config={vehicleConfig}
-        />
+      {/* ---- INSTRUMENTS ---- */}
+      <main className="flex-1 min-h-0 flex items-center justify-center py-3">
+        <SimpleVehicleView pitch={pitch} roll={roll} config={vehicleConfig} />
       </main>
 
-      {/* 3. BOTTOM UTILITY DOCK */}
-      <footer className="w-full flex items-center justify-end pt-2 border-t border-neutral-700/20">
-        {/* Global Compass & Sunrise Direction Badge */}
-        <div className="flex items-center gap-2">
-          {isLevel ? (
-            <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              Camper is Level
-            </span>
-          ) : (
-            <CompassSunriseBadge yaw={orientation.yaw} isDayMode={isDayMode} />
-          )}
+      <div className="seam h-px shrink-0" />
+
+      {/* ---- VERDICT RAIL ---- */}
+      <footer className="shrink-0 flex items-center justify-between gap-4 py-2.5">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <span
+            className="stencil text-[13px] sm:text-[15px] leading-none"
+            style={{ color: isLevel ? 'var(--level)' : 'var(--amber)' }}
+          >
+            {isLevel ? 'Level' : 'Out of level'}
+          </span>
+          <span className="readout text-[15px] font-medium" style={{ color: 'var(--ink-2)' }}>
+            {totalTilt.toFixed(1)}°
+          </span>
+          <span className="text-[10px] leading-none hidden sm:inline" style={{ color: 'var(--ink-3)' }}>
+            tolerance ±{tolerance.toFixed(1)}°
+          </span>
         </div>
+
+        <CompassSunriseBadge yaw={orientation.yaw} />
       </footer>
 
-      {/* Options Modal */}
       <OptionsModal
         isOpen={isOptionsOpen}
         onClose={() => setIsOptionsOpen(false)}
         config={vehicleConfig}
         onSaveConfig={handleSaveConfig}
-        isDayMode={isDayMode}
       />
     </div>
   );
