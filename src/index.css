@@ -170,53 +170,48 @@ button:focus-visible {
 }
 
 /* ==========================================================================
-   Layout switch is driven by the panel's shape, not its raw width. A head
-   unit is landscape and gets the three-across instrument cluster; anything
-   taller than it is wide (a tablet or phone held upright) stacks instead.
+   Layout: two axis readouts side by side with the corner indicator at the
+   end. Stacks when the panel is taller than it is wide (a phone or a tablet
+   held upright); a head unit is landscape and gets the row.
    ========================================================================== */
 
 .cluster {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  gap: 1rem;
+  gap: 1.25rem;
   width: 100%;
   height: 100%;
   min-height: 0;
 }
 
-.cluster > .cluster__axis {
+.cluster__axis {
+  min-width: 0;
+}
+
+/* Hairline between the two axes - a divider, not a box. */
+.cluster__rule {
+  background: var(--line);
+  height: 1px;
   width: 100%;
-  max-width: 26rem;
-}
-
-.cluster__dial {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cluster__dial > div {
-  aspect-ratio: 1;
-  width: min(74vw, 36vh);
 }
 
 @media (orientation: landscape) and (min-aspect-ratio: 6/5) {
   .cluster {
     flex-direction: row;
     align-items: center;
-    gap: clamp(1rem, 3vw, 3rem);
+    gap: clamp(1.25rem, 4vw, 3.5rem);
   }
 
-  .cluster > .cluster__axis {
+  .cluster__axis {
     flex: 1 1 0;
-    width: auto;
-    max-width: 22rem;
   }
 
-  .cluster__dial > div {
-    width: min(40vw, 82vh);
+  .cluster__rule {
+    width: 1px;
+    height: auto;
+    align-self: stretch;
+    margin: 1.5rem 0;
   }
 }

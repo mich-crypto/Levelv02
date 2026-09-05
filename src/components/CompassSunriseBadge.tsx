@@ -101,8 +101,10 @@ export const CompassSunriseBadge: React.FC<CompassSunriseBadgeProps> = ({ yaw })
         className="h-10 px-2.5 flex items-center gap-2.5 transition-colors"
         style={{ border: '1px solid var(--line)', color: 'var(--ink-2)' }}
       >
-        {dial(24, false)}
-        <span className="readout text-sm font-medium hidden sm:inline">
+        <span className="stencil text-[10px]" style={{ color: 'var(--ink-3)' }}>
+          Heading
+        </span>
+        <span className="readout text-base font-medium">
           {hasHeading ? `${heading}°` : '—'}
         </span>
       </button>
